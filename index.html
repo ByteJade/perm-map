@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карта Перми</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center; /* центрирование по горизонтали */
+            align-items: flex-start;     /* центрирование по вертикали */
+        }
+
+        .image-wrapper {
+            position: relative;
+            display: block;
+            max-width: 100%;
+        }
+
+        .image-wrapper img {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+        .hotspot {
+            position: absolute;
+            transform: translate(-50%, -50%); /* центрируем саму кнопку на точке */
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            border: none;
+            background: none;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            cursor: pointer;
+        }
+        .hotspot--type1 { background-image: url('home.png'); }
+        .hotspot--type2 { background-image: url('tree.png'); }
+        .hotspot--type3 { background-image: url('baloon.png'); }
+    </style>
+</head>
+<body>
+    <div class="image-wrapper" id="wrapper">
+        <img src="main_map.png" alt="main_map">
+        <!-- кнопки добавим через JS -->
+    </div>
+    <script>
+        // Координаты в процентах относительно изображения
+        const points = [
+            { x: 53, y: 29, type: 1, label: "Музей пермских древностей" },
+            { x: 50, y: 28.5, type: 1, label: "Пермская государственная художественная галерея" },
+            { x: 52, y: 25, type: 1, label: "Парк Россия-Моя история" },
+            { x: 60, y: 50, type: 2, label: "тип 2" },
+            { x: 80, y: 80, type: 3, label: "тип 3" },
+        ];
+
+        const wrapper = document.getElementById('wrapper');
+
+        points.forEach(p => {
+            const btn = document.createElement('button');
+            btn.className = `hotspot hotspot--type${p.type}`;
+            btn.title = p.label;
+            btn.style.left = p.x + '%';
+            btn.style.top  = p.y + '%';
+            btn.addEventListener('click', () => {
+                window.location.href = `${p.label}/page.html`;
+            });
+            wrapper.appendChild(btn);
+        });
+    </script>
+</body>
+</html>
