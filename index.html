@@ -11,19 +11,40 @@
             display: flex;
             justify-content: center; /* центрирование по горизонтали */
             align-items: flex-start;     /* центрирование по вертикали */
+            overflow: hidden;
         }
 
         .image-wrapper {
+            transform-origin: 0 0;
             position: relative;
             display: block;
             width: 100%;
+            will-change: transform;
+            cursor: grab;
         }
+        .image-wrapper.dragging { cursor: grabbing; }
 
         .image-wrapper img {
             display: block;
             width: 100%;
             height: auto;
         }
+        #search {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            width: min(400px, 90vw);
+            padding: 10px 16px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            outline: none;
+        }
+        #search:focus { border-color: #4a90e2; }
+
         .hotspot {
             position: absolute;
             transform: translate(-50%, -50%); /* центрируем саму кнопку на точке */
@@ -37,29 +58,58 @@
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
+            touch-action: manipulation; 
             cursor: pointer;
+        }
+        .hotspot.hidden {
+            display: none;
         }
         .hotspot--type1 { background-image: url('home.png'); }
         .hotspot--type2 { background-image: url('tree.png'); }
         .hotspot--type3 { background-image: url('baloon.png'); }
+        .hotspot--type4 { background-image: url('forest.png'); }
     </style>
 </head>
 <body>
+    <input type="text" id="search" placeholder="Поиск объекта..." autocomplete="off">
     <div class="image-wrapper" id="wrapper">
         <img src="main_map.png" alt="main_map">
     </div>
     <script>
         const points = [
-            { x: 53, y: 29, type: 1, label: "Музей пермских древностей" },
             { x: 50, y: 28.5, type: 1, label: "Пермская государственная художественная галерея" },
             { x: 52, y: 25, type: 1, label: "Парк Россия-Моя история" },
             { x: 42.5, y: 32, type: 1, label: "Пермская Арт-Резиденция" },
             { x: 51.5, y: 34, type: 1, label: "Детский Музейный Центр" },
-            { x: 60, y: 50, type: 2, label: "тип 2" },
-            { x: 80, y: 80, type: 3, label: "тип 3" },
+            { x: 36, y: 35, type: 1, label: "Мемориальный дом-музей «Подпольная типография»" },
+            { x: 76, y: 2, type: 1, label: "Мемориальный дом-музей Н.Г.Славянова" },
+            { x: 56, y: 29, type: 1, label: "Художественная галерея «Пермский период»" },
+            { x: 65.5, y: 29, type: 1, label: "Пермский автомобильный музей «Ретро-Гараж»" },
+            { x: 53, y: 29, type: 1, label: "Музей пермских древностей" },
+            { x: 77.5, y: 4.5, type: 1, label: "Музей пермской артиллерии" },
+            { x: 22, y: 88, type: 1, label: "Музей истории Индустриального района" },
+            { x: 46.5, y: 34, type: 1, label: "Музей сладостей «Конфектория»" },
+            
+            { x: 79, y: 2, type: 2, label: "Райский сад" },
+            { x: 50, y: 24, type: 2, label: "Сквер имени Ф. М. Решетникова" },
+            { x: 37, y: 77, type: 2, label: "Сквер Миндовского" },
+            { x: 32, y: 42, type: 2, label: "Сад им. 250-летия города Перми" },
+            { x: 54, y: 26, type: 2, label: "Театральный сквер" },
+            { x: 44, y: 36, type: 2, label: "Эспланада" },
+            { x: 47.5, y: 31.5, type: 2, label: "Сквер Уральских Добровольцев" },
+            { x: 35, y: 40, type: 2, label: "Сквер Олега Новоселова" },
+
+            { x: 54, y: 43, type: 3, label: "Центральный парк развлечений им.М.Горького" },
+            { x: 10, y: 85, type: 3, label: "Альянс Парк" },
+            { x: 35, y: 45, type: 3, label: "Экстрим-парк" },
+
+            { x: 22, y: 68, type: 4, label: "Черняевский лес" },
+            { x: 60.5, y: 27, type: 4, label: "Тропа к Егошихе" },
+            { x: 81, y: 94, type: 4, label: "Экологическая Тропа Липовая Гора" },
         ];
 
         const wrapper = document.getElementById('wrapper');
+        const hotspots = [];
 
         points.forEach(p => {
             const btn = document.createElement('button');
@@ -71,6 +121,154 @@
                 window.location.href = `${p.label}/page.html`;
             });
             wrapper.appendChild(btn);
+            hotspots.push({ el: btn, label: p.label });
+        });
+        const searchInput = document.getElementById('search');
+
+        searchInput.addEventListener('input', () => {
+            // нормализуем: нижний регистр, убираем лишние пробелы
+            const query = searchInput.value.trim().toLowerCase();
+
+            hotspots.forEach(({ el, label }) => {
+                const labelLower = label.toLowerCase();
+
+                // Показываем, если запрос пустой ИЛИ название НАЧИНАЕТСЯ с запроса.
+                // Если нужно "содержит" — замените startsWith на includes.
+                const matches = query === '' || labelLower.startsWith(query);
+
+                el.classList.toggle('hidden', !matches);
+            });
+        });
+        /* ---------- ЗУМ И ПАНОРАМИРОВАНИЕ ---------- */
+        let scale = 1;
+        let minScale = 1;
+        let maxScale = 6;
+        let tx = 0, ty = 0;           // смещение
+        let isDragging = false;
+        let startX, startY, startTx, startTy;
+
+        function applyTransform() {
+            wrapper.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        }
+
+        /* Колесо мыши — зум к курсору */
+        wrapper.addEventListener('wheel', (e) => {
+            e.preventDefault();
+
+            const rect = wrapper.getBoundingClientRect();
+
+            const mx = (e.clientX - rect.left) / scale;
+            const my = (e.clientY - rect.top)  / scale;
+
+            const delta = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const newScale = Math.min(maxScale, Math.max(minScale, scale * delta));
+            if (newScale === scale) return;
+
+            tx = tx + mx * (scale - newScale);
+            ty = ty + my * (scale - newScale);
+
+            scale = newScale;
+            applyTransform();
+        }, { passive: false });
+
+        /* Перетаскивание (мышь) */
+        wrapper.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isDragging = true;
+            wrapper.classList.add('dragging');
+            startX = e.clientX;
+            startY = e.clientY;
+            startTx = tx;
+            startTy = ty;
+            e.preventDefault();
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            tx = startTx + (e.clientX - startX);
+            ty = startTy + (e.clientY - startY);
+            applyTransform();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            wrapper.classList.remove('dragging');
+        });
+
+        /* Тач: один палец — панорама, два пальца — пинч-зум */
+        let pinchStartDist = 0;
+        let pinchStartScale = 1;
+        let pinchStartTx = 0, pinchStartTy = 0;
+        let pinchCenterX = 0, pinchCenterY = 0;
+
+        function getTouchCenter(touches) {
+            return {
+                x: (touches[0].clientX + touches[1].clientX) / 2,
+                y: (touches[0].clientY + touches[1].clientY) / 2
+            };
+        }
+        function getTouchDist(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.hypot(dx, dy);
+        }
+
+        wrapper.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                startTx = tx;
+                startTy = ty;
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                pinchStartDist = getTouchDist(e.touches);
+                pinchStartScale = scale;
+                pinchStartTx = tx;
+                pinchStartTy = ty;
+                const c = getTouchCenter(e.touches);
+                const rect = wrapper.getBoundingClientRect();
+                pinchCenterX = c.x - rect.left;
+                pinchCenterY = c.y - rect.top;
+            }
+        }, { passive: true });
+
+        wrapper.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1 && isDragging) {
+                tx = startTx + (e.touches[0].clientX - startX);
+                ty = startTy + (e.touches[0].clientY - startY);
+                applyTransform();
+                e.preventDefault();
+            } else if (e.touches.length === 2) {
+                const dist = getTouchDist(e.touches);
+                const newScale = Math.min(maxScale, Math.max(minScale, pinchStartScale * dist / pinchStartDist));
+                // зум относительно центра пинча
+                tx = pinchCenterX - (pinchCenterX - pinchStartTx) * (newScale / pinchStartScale);
+                ty = pinchCenterY - (pinchCenterY - pinchStartTy) * (newScale / pinchStartScale);
+                scale = newScale;
+                applyTransform();
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        wrapper.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        /* Двойной клик — сброс / увеличение */
+        wrapper.addEventListener('dblclick', (e) => {
+            if (scale > 1) {
+                scale = 1; tx = 0; ty = 0;
+            } else {
+                const rect = wrapper.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                const newScale = 2.5;
+                tx = mx - (mx - tx) * (newScale / scale);
+                ty = my - (my - ty) * (newScale / scale);
+                scale = newScale;
+            }
+            applyTransform();
         });
     </script>
 </body>
